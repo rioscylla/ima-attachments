@@ -20,6 +20,7 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:#d4d9e2;border-radius:8px}
 .hidden{display:none!important}
+.only-sm{display:none!important}
 
 /* 顶部 */
 header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
@@ -291,6 +292,7 @@ a.lnk{color:var(--pri);text-decoration:underline}
   .fab{display:flex}
   table.ov th,table.ov td{padding:7px 8px;font-size:12px}
   .hide-xs{display:none!important}
+  .only-sm{display:inline-flex!important}
 }
 @media print{
   header,.fab,.toast,.mask{display:none!important}
@@ -318,7 +320,17 @@ a.lnk{color:var(--pri);text-decoration:underline}
       <button class="btn ghost txtbtn" id="btn-report">📄 报告</button>
       <button class="btn ghost txtbtn" id="btn-batch">☑ 批量</button>
       <button class="btn ghost txtbtn" id="btn-import">导入</button>
-      <button class="btn ghost txtbtn" id="btn-sync">☁</button>
+      <button class="btn ghost" id="btn-sync" title="云同步">☁</button>
+      <div class="dd only-sm" id="dd-more">
+        <button class="btn ghost" id="btn-more" title="菜单">☰</button>
+        <div class="dd-menu">
+          <button data-m="sync">☁ 云同步设置</button>
+          <button data-m="report">📄 生成报告</button>
+          <button data-m="batch">☑ 批量操作</button>
+          <button data-m="export">⬇ 导出 Excel</button>
+          <button data-m="import">⬆ 导入数据</button>
+        </div>
+      </div>
       <button class="btn pri hide-xs" id="btn-add">+ 新建事项</button>
     </div>
   </div>
@@ -502,7 +514,7 @@ a.lnk{color:var(--pri);text-decoration:underline}
 <script>
 /* ================= 常量与存储 ================= */
 const LS_KEY='ima_todo_v2';
-const APP_VERSION='2026.09.23-3';
+const APP_VERSION='2026.09.24-4';
 const CYCLE_CN={daily:'日',weekly:'周',monthly:'月',quarterly:'季度',halfyear:'半年',yearly:'年度',once:'一次性'};
 const PRI_CN={high:'高',mid:'中',low:'低'};
 const ST_CN={todo:'待办',doing:'进行中',done:'已完成'};
@@ -1271,6 +1283,15 @@ function bindGlobal(){
     if(!b){$('#dd-export').classList.toggle('open');return}$('#dd-export').classList.remove('open');
     const x=b.dataset.x;x==='excel'?exportExcel():x==='csv'?exportCSV():x==='snap'?openSnaps():exportJSON();});
   document.addEventListener('click',e=>{if(!e.target.closest('#dd-export'))$('#dd-export').classList.remove('open')});
+  $('#dd-more').addEventListener('click',e=>{const b=e.target.closest('[data-m]');
+    if(!b){$('#dd-more').classList.toggle('open');return;}
+    $('#dd-more').classList.remove('open');const m=b.dataset.m;
+    if(m==='sync')sync.open();
+    else if(m==='report'){genReport();$('#report-mask').classList.add('on');}
+    else if(m==='batch')toggleBatch(true);
+    else if(m==='export')exportExcel();
+    else if(m==='import')$('#file-in').click();});
+  document.addEventListener('click',e=>{if(!e.target.closest('#dd-more'))$('#dd-more').classList.remove('open')});
   // 历史版本
   $('#snap-list').addEventListener('click',e=>{const b=e.target.closest('[data-restore]');if(b)restoreSnap(+b.dataset.restore)});
   $('#snap-close').addEventListener('click',()=>$('#snap-mask').classList.remove('on'));
