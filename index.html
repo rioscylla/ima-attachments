@@ -1111,7 +1111,7 @@ const sync={
     try{if(!c.gistId&&(c.provider==='github'||c.provider==='gitee')){c.gistId=await this.gistFind(c);}
       if(c.provider==='rest'&&!c.url)return;
       const remote=await this.fetchRemote();
-      if(remote&&(remote.tasks||[]).length&&store.tasks.length===0){
+      if(remote&&(remote.tasks||[]).length&&(store.tasks.length===0||isDemoOnly())){
         store.data=remote;store.data.sync=Object.assign(store.data.sync||{},{provider:c.provider,url:c.url,gistId:c.gistId,attachRepo:c.attachRepo,auto:c.auto,key:c.key});
         localStorage.setItem(LS_KEY,JSON.stringify(store.data));render();toast('☁ 已从云端恢复 '+remote.tasks.length+' 条数据');return;}
       await this.push();
@@ -1137,6 +1137,7 @@ const sync={
     else{const r=await fetch('https://gitee.com/api/v5/gists/'+c.gistId+'?access_token='+encodeURIComponent(c.key),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({files})});if(!r.ok){let t='';try{t=await r.text();}catch(e){}throw new Error(this.errMsg(r.status,t));}}},
   async push(silent){const c=this.cfg();
     if(!c||c.provider==='off'||!c.provider){if(!silent)toast('请先配置同步服务');return;}
+    if(isDemoOnly()){if(!silent)toast('当前仅有示例数据，已阻止上传以免覆盖云端');return;}
     try{const body=this.payload();
       if(c.provider==='github'||c.provider==='gitee'){if(!c.key){if(!silent)toast('请填写 Token');return;}
         if(!c.gistId){c.gistId=await this.gistFind(c);}if(!c.gistId){c.gistId=await this.gistCreate(c,body);toast('已创建云端存储');}else{await this.gistUpdate(c,body);}}
@@ -1159,6 +1160,7 @@ const sync={
   async pull(){const c=this.cfg();if(!c||c.provider==='off'||!c.provider){toast('请先配置同步服务');return;}
     try{const remote=await this.fetchRemote();if(!remote){toast('云端暂无数据');return;}
       const rn=(remote.tasks||[]).length;
+      if(isDemoArr(remote.tasks)&&!isDemoOnly()){toast('云端当前只有示例数据，已取消拉取以保护本地');return;}
       if(confirm('用云端数据覆盖本地？云端 '+rn+' 条 / 本地 '+store.tasks.length+' 条')){
         const keepKey=c.key;store.data=remote;if(!store.data.tasks)store.data.tasks=[];
         store.data.sync=Object.assign(store.data.sync||{},{provider:c.provider,url:c.url,gistId:c.gistId,attachRepo:c.attachRepo,auto:c.auto,key:keepKey});
@@ -1185,10 +1187,10 @@ async function bootSync(){const c=store.data.sync;
   if(!c||c.provider==='off'||!c.provider||!c.key)return;
   try{const remote=await sync.fetchRemote();if(!remote)return;
     const rn=(remote.tasks||[]).length,ln=store.tasks.length,kk=c.key;
-    if(ln===0&&rn>0){store.data=remote;if(!store.data.tasks)store.data.tasks=[];
+    if((ln===0||isDemoOnly())&&rn>0&&!isDemoArr(remote.tasks)){store.data=remote;if(!store.data.tasks)store.data.tasks=[];
       store.data.sync=Object.assign(store.data.sync||{},{provider:c.provider,url:c.url,gistId:c.gistId,auto:c.auto,key:kk});
       localStorage.setItem(LS_KEY,JSON.stringify(store.data));render();toast('☁ 已从云端恢复数据（'+rn+' 条）');}
-    else if(ln>0&&(remote.updatedAt||'')>(store.data.updatedAt||'')){
+    else if(ln>0&&!isDemoArr(remote.tasks)&&(remote.updatedAt||'')>(store.data.updatedAt||'')){
       if(confirm('检测到云端数据更新，是否载入云端版本？')){store.data=remote;
         store.data.sync=Object.assign(store.data.sync||{},{provider:c.provider,url:c.url,gistId:c.gistId,auto:c.auto,key:kk});
         localStorage.setItem(LS_KEY,JSON.stringify(store.data));render();toast('☁ 已载入云端版本');}}
@@ -1301,6 +1303,8 @@ function bindGlobal(){
 }
 
 /* ================= 初始化 ================= */
+function isDemoOnly(){return store.tasks.length>0&&store.tasks.every(t=>t._demo);}
+function isDemoArr(a){return !!a&&a.length>0&&a.every(t=>t._demo);}
 function guessDomain(t){const s=((t.title||'')+(t.desc||'')+(t.tags||[]).join('')+(t.dept||''));
   if(/税务|纳税|发票|汇算/.test(s))return '税务管理';
   if(/资金|融资|授信|担保|银行|账户|应收|回款/.test(s))return '资金与融资';
@@ -1320,7 +1324,7 @@ store.tasks.forEach(t=>{ if(!t.domain) t.domain=guessDomain(t); if(t.progress==n
 $('#app-ver').textContent='v'+APP_VERSION;bindGlobal();render();
 setInterval(()=>{const t=fmt(today0());if(state._d!==t){state._d=t;render()}},60000);state._d=fmt(today0());
 setTimeout(()=>{try{bootSync()}catch(e){}},800);
-if(!localStorage.getItem(LS_KEY+'_seeded')&&store.tasks.length===0){
+if(!localStorage.getItem(LS_KEY+'_seeded')&&store.tasks.length===0&&!(store.data.sync.provider!=='off'&&store.data.sync.key)){
   const y=state.ref.getFullYear(),m=state.ref.getMonth(),day=state.ref.getDate();
   const demo=[
     {title:'月度账务结账',cycle:'monthly',due:fmt(new Date(y,m,3)),priority:'low',status:'done',owner:'RIO',dept:'财务部',tags:['结账'],recur:'monthly',domain:'核算与报表',nature:'例常例行',level:'C',progress:100,deliverable:'月度财务报表'},
@@ -1332,7 +1336,7 @@ if(!localStorage.getItem(LS_KEY+'_seeded')&&store.tasks.length===0){
     {title:'落实集团财务检查问题整改',cycle:'monthly',due:fmt(new Date(y,m,20)),priority:'high',status:'doing',owner:'RIO',dept:'财务部',tags:['整改'],domain:'审计与内控',nature:'检查整改',level:'A',progress:50,source:'集团财务检查反馈'},
     {title:'总经理办公会交办：成本管控专题方案',cycle:'quarterly',due:fmt(new Date(y,m,25)),priority:'high',status:'todo',owner:'RIO',dept:'财务部',tags:['成本'],domain:'成本与价格管控',nature:'领导交办',level:'A',progress:10,source:'总经理办公会纪要',deliverable:'成本管控方案'},
   ];
-  demo.forEach(d=>store.tasks.push(Object.assign({id:uid(),createdAt:new Date().toISOString(),updatedAt:'',completedAt:d.status==='done'?new Date().toISOString():''},d)));
+  demo.forEach(d=>store.tasks.push(Object.assign({id:uid(),_demo:true,createdAt:new Date().toISOString(),updatedAt:'',completedAt:d.status==='done'?new Date().toISOString():''},d)));
   store.save();localStorage.setItem(LS_KEY+'_seeded','1');render();
 }
 </script>
